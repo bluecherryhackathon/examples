@@ -34,13 +34,13 @@
 
 /* Parameters for the WiFi connection */
 #define WIFI_SSID           "DPTechnics"
-#define WIFI_PASSWORD       "--------"
+#define WIFI_PASSWORD       "----------"
 
 /* Parameters for the MQTT connection */
 #define MQTT_SERVER         "broker.hivemq.com"
 #define MQTT_PORT           1883
 #define MQTT_CLIENT_ID      "groupname"
-#define MQTT_TOPIC_PREFIX   "groupname"
+#define MQTT_TOPIC_PREFIX   "/groupname"
 
 /* Class instantiations */
 Adafruit_SSD1306  display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, SCREEN_RESET);
@@ -159,18 +159,16 @@ void setup_mqtt() {
   mqttClient.setServer(MQTT_SERVER, MQTT_PORT);
   mqttClient.setCallback(mqtt_callback);
   
-  while (!mqttClient.connected()) {
+  while(!mqttClient.connected()) {
     Serial.print("Connecting to MQTT server");
     if (mqttClient.connect(MQTT_CLIENT_ID)) {
-      Serial.println("connected");
-      //Once connected, publish an announcement...
-      mqttClient.publish(MQTT_TOPIC_PREFIX "/hackathon/test", "hello world");
+      Serial.println("MQTT connected");
+      mqttClient.publish(MQTT_TOPIC_PREFIX "/hackathon/test", MQTT_CLIENT_ID " is online");
       mqttClient.subscribe(MQTT_TOPIC_PREFIX "/hackathon/rx");
     } else {
-      Serial.print("failed, rc=");
+      Serial.print("MQTT connection failed, rc=");
       Serial.print(mqttClient.state());
       Serial.println(" try again in 5 seconds");
-      // Wait 5 seconds before retrying
       delay(5000);
     }
   }
@@ -194,5 +192,21 @@ void setup() {
   setup_mqtt();
 }
 
+/**
+ * Main application which runs in infinite loop.
+ */
 void loop() {
+  /* Check MQTT connection */
+  if(!mqttClient.connected()) {
+    Serial.print("Reconnecting to MQTT server");
+    if (mqttClient.connect(MQTT_CLIENT_ID)) {
+      Serial.println("MQTT connected");
+      mqttClient.subscribe(MQTT_TOPIC_PREFIX "/hackathon/rx");
+    } else {
+      Serial.print("MQTT connection failed, rc=");
+      Serial.print(mqttClient.state());
+      Serial.println(" try again in 5 seconds");
+      delay(5000);
+    }
+  }
 }
