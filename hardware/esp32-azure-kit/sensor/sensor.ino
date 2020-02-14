@@ -17,116 +17,43 @@
 
 #include <WiFi.h>
 #include <Wire.h>
+#include <Sodaq_HTS221.h>
 #include <PubSubClient.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
 
 /* IC2 bus parameters for the ESP32 Azure IoT kit */
 #define I2C_SDA_PIN         25
 #define I2C_SCL_PIN         26
 #define IC2_SPEED           400000
 
-/* Parameters for the OLED screen */
-#define SCREEN_WIDTH        128
-#define SCREEN_HEIGHT       64
-#define SCREEN_RESET        -1
-#define SCREEN_ADDRESS      0x3C
-
 /* Parameters for the WiFi connection */
 #define WIFI_SSID           "DPTechnics"
-#define WIFI_PASSWORD       "----------"
+#define WIFI_PASSWORD       "makkelijk"
 
 /* Parameters for the MQTT connection */
-#define MQTT_SERVER         "testserver.dptechnics.com"
+#define MQTT_SERVER         "broker.hivemq.com"
 #define MQTT_PORT           1883
 #define MQTT_CLIENT_ID      "groupname"
 #define MQTT_TOPIC_PREFIX   "/groupname"
 
 /* Class instantiations */
-Adafruit_SSD1306  display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, SCREEN_RESET);
 WiFiClient wifiClient;
 PubSubClient mqttClient(wifiClient);
+Sodaq_HTS221 tempHumidSensor;
 
-/**
- * Construct the display header text line
- */
-void display_set_header()
-{
-  display.cp437(true);
-  display.setTextSize(1);
-  display.setTextColor(SSD1306_WHITE);
-  display.setCursor(0,0);
-  display.println("BlueCherry Hackathon");
-  display.drawLine(0,8, 128, 8, SSD1306_WHITE);
-}
-
-/**
- * Initialize the display and print program name
- */
-void setup_display() {
-  if(!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS, true, false)) {
-    Serial.println("Screen initialization failed");
-    while(true);
-  }
-  Serial.println("Display initialized");
-
-  /* Display header */
-  display.clearDisplay();
-  display_set_header();
-  display.display();
-}
+/* Public variable for events in main loop */
+int ms_counter = 0;
 
 /**
  * Connect to the WiFi
  */
 void setup_wifi() {
   Serial.println("Connecting to WiFi");
-  display.clearDisplay();
-  display_set_header();
-  display.setCursor(0, 16);
-  display.println("Connecting WiFi");
-  display.display();
-
-  display.clearDisplay();
-  display_set_header();
-  display.setCursor(0, 16);
-  display.display();
   
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   while (WiFi.status() != WL_CONNECTED) {
     delay(250);
-    display.clearDisplay();
-    display_set_header();
-    display.setCursor(0, 16);
-    display.println("Connecting WiFi.");
-    display.display();
-    delay(250);
-    display.clearDisplay();
-    display_set_header();
-    display.setCursor(0, 16);
-    display.println("Connecting WiFi..");
-    display.display();
-    delay(250);
-    display.clearDisplay();
-    display_set_header();
-    display.setCursor(0, 16);
-    display.println("Connecting WiFi...");
-    display.display();
-    delay(250);
-    display.clearDisplay();
-    display_set_header();
-    display.setCursor(0, 16);
-    display.println("Connecting WiFi");
-    display.display();
   }
 
-  display.clearDisplay();
-  display_set_header();
-  display.setCursor(0, 16);
-  display.print("IP: ");
-  display.println(WiFi.localIP());
-  display.display();
-  
   Serial.println("Connection success");
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
@@ -138,18 +65,6 @@ void setup_wifi() {
 void mqtt_callback(char* topic, byte* message, unsigned int length) {
   Serial.print("Message arrived on topic: ");
   Serial.println(topic);
-
-  display.clearDisplay();
-  display_set_header();
-  display.setCursor(0, 16);
-
-  uint16_t xPos = 6;
-  for (int i = 0; i < length; i++) {
-    display.print((char) message[i]);
-    display.setCursor(xPos, 16);
-    xPos += 6;
-  }
-  display.display();
 }
 
 /**
@@ -174,6 +89,17 @@ void setup_mqtt() {
   }
 }
 
+/**
+ * Setup and configure the different sensors on board
+ */
+void setup_sensors() {
+  if(!tempHumidSensor.init()) {
+    Serial.println("Could not initialize HTS221 sensor");  
+  }
+  tempHumidSensor.enableSensor();
+  Serial.println("HTS221 sensor initialized");
+  
+}
 
 /**
  * Initialize the hardware
@@ -187,9 +113,9 @@ void setup() {
   Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
   Wire.setClock(400000);
 
-  setup_display();
   setup_wifi();
   setup_mqtt();
+  setup_sensors();
 }
 
 /**
@@ -211,5 +137,23 @@ void loop() {
   }
 
   /* Process incoming MQTT messages */
-  mqttClient.loop();  
+  mqttClient.loop();
+
+  /* Execute the contents every 1000ms */
+  if(ms_counter >= 1000) {
+    ms_counter = 0;
+    
+    /* Publish temperature and humidity values */
+    float temp = tempHumidSensor.readTemperature();
+    float humidity = tempHumidSensor.readHumidity();
+    
+    char buff[64] = { 0 };
+    snprintf(buff, 64, "{\"tmp\":%.02f,\"hmd\":%.02f}", temp, humidity);
+    Serial.println(buff);
+
+    mqttClient.publish(MQTT_TOPIC_PREFIX "/sensor/tempandhumid", buff);
+  }
+  
+  ms_counter += 1;
+  delay(1);
 }
