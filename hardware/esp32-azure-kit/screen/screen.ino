@@ -37,7 +37,7 @@
 #define WIFI_PASSWORD       "----------"
 
 /* Parameters for the MQTT connection */
-#define MQTT_SERVER         "broker.hivemq.com"
+#define MQTT_SERVER         "testserver.dptechnics.com"
 #define MQTT_PORT           1883
 #define MQTT_CLIENT_ID      "groupname"
 #define MQTT_TOPIC_PREFIX   "/groupname"
@@ -143,11 +143,11 @@ void mqtt_callback(char* topic, byte* message, unsigned int length) {
   display_set_header();
   display.setCursor(0, 16);
 
-  uint16_t xPos = 0;
+  uint16_t xPos = 6;
   for (int i = 0; i < length; i++) {
     display.print((char) message[i]);
     display.setCursor(xPos, 16);
-    xPos += 4;
+    xPos += 6;
   }
   display.display();
 }
@@ -199,7 +199,7 @@ void loop() {
   /* Check MQTT connection */
   if(!mqttClient.connected()) {
     Serial.print("Reconnecting to MQTT server");
-    if (mqttClient.connect(MQTT_CLIENT_ID)) {
+    if(mqttClient.connect(MQTT_CLIENT_ID)) {
       Serial.println("MQTT connected");
       mqttClient.subscribe(MQTT_TOPIC_PREFIX "/hackathon/rx");
     } else {
@@ -209,4 +209,6 @@ void loop() {
       delay(5000);
     }
   }
+
+  mqttClient.loop();  
 }
