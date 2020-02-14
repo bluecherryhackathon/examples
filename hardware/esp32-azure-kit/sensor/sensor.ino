@@ -17,6 +17,7 @@
 
 #include <WiFi.h>
 #include <Wire.h>
+#include <BH1750FVI.h>
 #include <Sodaq_HTS221.h>
 #include <PubSubClient.h>
 
@@ -39,9 +40,77 @@
 WiFiClient wifiClient;
 PubSubClient mqttClient(wifiClient);
 Sodaq_HTS221 tempHumidSensor;
+BH1750FVI lightSensor(13, BH1750FVI::k_DevAddress_L, BH1750FVI::k_DevModeContHighRes);
 
 /* Public variable for events in main loop */
 int ms_counter = 0;
+
+/**
+ * Initialize the magnetometer.
+ */
+void magneto_init() {
+  Wire.beginTransmission(0x0E);
+  Wire.write(0x11);
+  Wire.write(0x80);
+  Wire.endTransmission();
+  delay(15);
+  Wire.beginTransmission(0x0E);
+  Wire.write(0x10);
+  Wire.write(1);
+  Wire.endTransmission();
+}
+
+/**
+ * Read a register from the magnetometer
+ */
+int magneto_read_register(int reg) {
+  int reg_val;
+ 
+  Wire.beginTransmission(0x0E);
+  Wire.write(reg);
+  Wire.endTransmission();
+  delayMicroseconds(2);
+ 
+  Wire.requestFrom(0x0E, 1);
+  while(Wire.available()) {
+    reg_val = Wire.read();
+  }
+ 
+  return reg_val;
+}
+
+/**
+ * Read a value from the magnetometer.
+ */
+int magneto_read_value(int msb_reg, int lsb_reg) {
+  int val_low, val_high;
+  val_high = magneto_read_register(msb_reg);
+  delayMicroseconds(2);
+  val_low = magneto_read_register(lsb_reg);
+  int out = (val_low|(val_high << 8));
+  return out;
+}
+
+/**
+ * Get the X value of the magnetometer.
+ */
+int magneto_get_x() {
+  return magneto_read_value(0x01, 0x02);
+}
+
+/**
+ * Get the Y value of the magnetometer.
+ */
+int magneto_get_y() {
+  return magneto_read_value(0x03, 0x04);
+}
+
+/**
+ * Get the Z value of the magnetometer.
+ */
+int magneto_get_z() {
+  return magneto_read_value(0x05, 0x06);
+}
 
 /**
  * Connect to the WiFi
@@ -98,7 +167,12 @@ void setup_sensors() {
   }
   tempHumidSensor.enableSensor();
   Serial.println("HTS221 sensor initialized");
-  
+
+  lightSensor.begin();
+  Serial.println("BH1750FVI sensor initialized");
+
+  magneto_init();
+  Serial.println("MAG3110 sensor initialized");
 }
 
 /**
@@ -150,8 +224,22 @@ void loop() {
     char buff[64] = { 0 };
     snprintf(buff, 64, "{\"tmp\":%.02f,\"hmd\":%.02f}", temp, humidity);
     Serial.println(buff);
-
     mqttClient.publish(MQTT_TOPIC_PREFIX "/sensor/tempandhumid", buff);
+
+    /* Publish lux values */
+    uint16_t lux = lightSensor.GetLightIntensity();
+    snprintf(buff, 64, "{\"lux\":%d}", lux);
+    Serial.println(buff);
+    mqttClient.publish(MQTT_TOPIC_PREFIX "/sensor/lux", buff);
+
+    /* Publish magnetometer values */
+    int x = magneto_get_x();
+    int y = magneto_get_y();
+    int z = magneto_get_z();
+    snprintf(buff, 64, "{\"x\":%d,\"y\":%d,\"z\":%d}", x,y,z);
+    Serial.println(buff);
+    mqttClient.publish(MQTT_TOPIC_PREFIX "/sensor/magneto", buff);
+
   }
   
   ms_counter += 1;
