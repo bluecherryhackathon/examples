@@ -33,14 +33,14 @@
 #define SCREEN_ADDRESS      0x3C
 
 /* Parameters for the WiFi connection */
-#define WIFI_SSID           "DPTechnics"
-#define WIFI_PASSWORD       "----------"
+#define WIFI_SSID           "Schuur De Vier Ambachten"
+#define WIFI_PASSWORD       "gratiswifi"
 
 /* Parameters for the MQTT connection */
-#define MQTT_SERVER         "testserver.dptechnics.com"
+#define MQTT_SERVER         "broker.hivemq.com"
 #define MQTT_PORT           1883
-#define MQTT_CLIENT_ID      "groupname"
-#define MQTT_TOPIC_PREFIX   "/groupname"
+#define MQTT_CLIENT_ID      "groep7"
+#define MQTT_TOPIC_PREFIX   "/public"
 
 /* Class instantiations */
 Adafruit_SSD1306  display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, SCREEN_RESET);
